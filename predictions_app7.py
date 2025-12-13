@@ -99,7 +99,7 @@ def load_performance():
 # ==========================================
 st.set_page_config(page_title="Weight Loss Prediction", layout="wide")
 # ==========================================
-# DISCLAIMER GATE (BUTTON FIXED)
+# DISCLAIMER GATE (STREAMLIT-NATIVE, SAFE)
 # ==========================================
 
 if "disclaimer_accepted" not in st.session_state:
@@ -107,69 +107,33 @@ if "disclaimer_accepted" not in st.session_state:
 
 if not st.session_state.disclaimer_accepted:
 
+    st.title("⚠️ Important Disclaimer")
+
     st.markdown(
         """
-        <div style="
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(255,255,255,0.97);
-            z-index: 9999;
-            padding: 60px;
-            overflow-y: auto;
-        ">
-        <h2>⚠️ Important Disclaimer</h2>
+        This application is **for testing and evaluation purposes only**
+        and is **still under development**.
 
-        <p style="font-size:18px;">
-        This application is <strong>for testing and evaluation purposes only</strong>
-        and is <strong>still under development</strong>.
-        </p>
+        - **This tool is not a medical device**
+        - Predictions may be inaccurate
+        - Results are **for reference only**
+        - **Always consult your bariatric surgeon or doctor**
 
-        <ul style="font-size:16px;">
-            <li><strong>This tool is not a medical device</strong></li>
-            <li>Predictions may be inaccurate</li>
-            <li>Results are <strong>for reference only</strong></li>
-            <li><strong>Always consult your bariatric surgeon or doctor</strong></li>
-        </ul>
-
-        <p style="font-size:14px;">
         No personal or health data entered into this application is stored or saved.
-        </p>
-
-        <div style="margin-top:40px; text-align:center;">
-            <p style="font-size:14px; color:gray;">
-            Please acknowledge to continue
-            </p>
-        </div>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
-    # 👉 PLACE BUTTON AFTER HTML, WITH HIGH Z-ORDER
-    st.markdown(
         """
-        <div style="
-            position: fixed;
-            bottom: 40px;
-            left: 0;
-            width: 100%;
-            z-index: 10000;
-            text-align: center;
-        ">
-        """,
-        unsafe_allow_html=True
     )
 
-    if st.button("I understand and agree"):
-        st.session_state.disclaimer_accepted = True
-        st.rerun()
+    st.markdown("---")
 
-    st.markdown("</div>", unsafe_allow_html=True)
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        if st.button("I understand and agree"):
+            st.session_state.disclaimer_accepted = True
+            st.rerun()
 
+    # 🚫 Stop the rest of the app here
     st.stop()
+    
 # SAFETY CHECK FOR LOGO FILE
 if os.path.exists(LOGO_PATH):
     st.image(LOGO_PATH, width=600)
