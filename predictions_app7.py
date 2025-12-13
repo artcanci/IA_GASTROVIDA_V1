@@ -1,5 +1,6 @@
-# STREAMLIT APP WITH AUTO-BMI, BMI ZONES, WEIGHT PREDICTION, BMI PROGRESSION, %TWL
-# + PDF EXPORT WITH HOSPITAL LOGO
+
+
+# STREAMLIT APP WITH AUTO-BMI, BMI ZONES, WEIGHT PREDICTION, BMI PROGRESSION, AND %TWL
 
 import streamlit as st
 import pandas as pd
@@ -9,11 +10,6 @@ import re
 import joblib
 import plotly.graph_objects as go
 from plotly.colors import qualitative
-from io import BytesIO
-
-from reportlab.lib.pagesizes import A4
-from reportlab.pdfgen import canvas
-from reportlab.lib.utils import ImageReader
 
 
 # ==========================================
@@ -25,15 +21,14 @@ if not hasattr(np, "bool"): np.bool = bool
 if not hasattr(np, "object"): np.object = object
 if not hasattr(np, "str"): np.str = str
 
-
 # ==========================================
-# PATHS
+# ABSOLUTE PATH FIXES  (IMPORTANT!)
 # ==========================================
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 MODEL_FOLDER = os.path.join(BASE_DIR, "models")
 PERFORMANCE_FILE = os.path.join(BASE_DIR, "Performance.xlsx")
 LOGO_PATH = os.path.join(BASE_DIR, "logo.jpeg")
-
 
 # ==========================================
 # TARGET ORDER
@@ -44,215 +39,344 @@ TARGETS_ORDER = [
     "6A", "7A", "8A", "9A", "10A"
 ]
 
-
 # ==========================================
-# MODEL LOADING
+# SCAN AND LOAD MODELS
 # ==========================================
 def scan_model_filenames():
+    # SAFE: ensures folder exists
     if not os.path.exists(MODEL_FOLDER):
+        st.error(f"Models folder not found: {MODEL_FOLDER}")
         return {}
 
-    files = [f for f in os.listdir(MODEL_FOLDER) if f.endswith(".pkl")]
+    files = [
+        f for f in os.listdir(MODEL_FOLDER)
+        if f.lower().endswith(".pkl")
+    ]
+
     pattern = r"^(1M|3M|6M|9M|1A|2A|3A|4A|5A|6A|7A|8A|9A|10A)_(.+)\.pkl$"
 
-    models = {}
-    for f in files:
-        m = re.match(pattern, f)
-        if m:
-            tgt, mtype = m.groups()
-            models.setdefault(mtype, {})[tgt] = f
-    return models
+    models_by_type = {}
+    for fname in files:
+        match = re.match(pattern, fname)
+        if not match:
+            continue
+        target, mtype = match.group(1), match.group(2)
+        if mtype not in models_by_type:
+            models_by_type[mtype] = {}
+        models_by_type[mtype][target] = fname
+
+    return models_by_type
 
 
 @st.cache_resource
 def load_all_models(models_by_type):
     loaded = {}
-    for mtype, tgts in models_by_type.items():
+
+    for mtype, targets in models_by_type.items():
         loaded[mtype] = {}
-        for tgt, fname in tgts.items():
+        for target, fname in targets.items():
+            fullpath = os.path.join(MODEL_FOLDER, fname)
+
             try:
-                loaded[mtype][tgt] = joblib.load(os.path.join(MODEL_FOLDER, fname))
-            except:
-                loaded[mtype][tgt] = None
+                loaded[mtype][target] = joblib.load(fullpath)
+            except Exception as e:
+                loaded[mtype][target] = None
+                st.error(f"❌ Failed to load {fname}: {e}")
+
     return loaded
 
 
 @st.cache_data
 def load_performance():
     if not os.path.exists(PERFORMANCE_FILE):
+        st.error(f"Performance.xlsx not found at {PERFORMANCE_FILE}")
         return pd.DataFrame()
+
     return pd.read_excel(PERFORMANCE_FILE)
-
-
-# ==========================================
-# PDF GENERATION (WITH LOGO)
-# ==========================================
-def generate_pdf(input_df, results_df, fig_weight, fig_bmi, fig_twl):
-    buffer = BytesIO()
-    c = canvas.Canvas(buffer, pagesize=A4)
-    width, height = A4
-    y = height - 40
-
-    # ===== LOGO =====
-    if os.path.exists(LOGO_PATH):
-        logo = ImageReader(LOGO_PATH)
-        c.drawImage(logo, 40, y - 80, width=200, height=60, preserveAspectRatio=True)
-        y -= 90
-
-    # ===== TITLE =====
-    c.setFont("Helvetica-Bold", 16)
-    c.drawString(40, y, "Bariatric Surgery Weight Prediction Report")
-    y -= 30
-
-    # ===== INPUTS =====
-    c.setFont("Helvetica-Bold", 12)
-    c.drawString(40, y, "Patient Inputs")
-    y -= 18
-    c.setFont("Helvetica", 10)
-
-    for col, val in input_df.iloc[0].items():
-        c.drawString(50, y, f"{col}: {val}")
-        y -= 14
-
-    y -= 10
-
-    # ===== TABLE =====
-    c.setFont("Helvetica-Bold", 12)
-    c.drawString(40, y, "Predictions")
-    y -= 18
-    c.setFont("Helvetica", 9)
-
-    for idx, row in results_df.iterrows():
-        c.drawString(50, y, f"{idx}: {row.to_dict()}")
-        y -= 12
-        if y < 120:
-            c.showPage()
-            y = height - 40
-
-    # ===== PLOTS =====
-    def add_plot(fig, title):
-        nonlocal y
-        img = ImageReader(BytesIO(fig.to_image(format="png", scale=2)))
-
-        if y < 350:
-            c.showPage()
-            y = height - 40
-
-        c.setFont("Helvetica-Bold", 12)
-        c.drawString(40, y, title)
-        y -= 15
-        c.drawImage(img, 40, y - 300, width=520, height=300)
-        y -= 320
-
-    add_plot(fig_weight, "Weight Prediction")
-    add_plot(fig_bmi, "BMI Progression")
-    add_plot(fig_twl, "% Total Weight Loss")
-
-    # ===== FOOTER =====
-    c.setFont("Helvetica-Oblique", 8)
-    c.drawCentredString(width / 2, 30, "Generated for clinical reference only – Not a medical device")
-
-    c.save()
-    buffer.seek(0)
-    return buffer
-
 
 # ==========================================
 # STREAMLIT UI
 # ==========================================
 st.set_page_config(page_title="Weight Loss Prediction", layout="wide")
+# ==========================================
+# CENTERED DISCLAIMER GATE
+# ==========================================
 
+if "disclaimer_accepted" not in st.session_state:
+    st.session_state.disclaimer_accepted = False
+
+if not st.session_state.disclaimer_accepted:
+
+    # Vertical spacing
+    st.markdown("<br><br><br>", unsafe_allow_html=True)
+
+    # Center horizontally using columns
+    col_left, col_center, col_right = st.columns([1, 2, 1])
+
+    with col_center:
+        st.markdown(
+            """
+            ### ⚠️ Important Disclaimer
+
+            This application is **for testing and evaluation purposes only**
+            and is **still under development**.
+
+            - **This tool is not a medical device**
+            - Predictions may be inaccurate
+            - Results are **for reference only**
+            - **Always consult your bariatric surgeon or doctor**
+
+            <br>
+
+            _No personal or health data entered into this application is stored or saved._
+            """,
+            unsafe_allow_html=True
+        )
+
+        st.markdown("---")
+
+        if st.button("I understand and agree", use_container_width=True):
+            st.session_state.disclaimer_accepted = True
+            st.rerun()
+
+    # 🚫 Stop the rest of the app
+    st.stop()
+    
+# SAFETY CHECK FOR LOGO FILE
 if os.path.exists(LOGO_PATH):
-    st.image(LOGO_PATH, width=500)
+    st.image(LOGO_PATH, width=600)
+else:
+    st.error(f"Logo file not found: {LOGO_PATH}")
 
 st.title("📈 Multi-Model Bariatric Surgery Weight Prediction")
 
+# LOAD MODELS
 models_by_type = scan_model_filenames()
 available_models = sorted(models_by_type.keys())
 LOADED = load_all_models(models_by_type)
 perf_df = load_performance()
 
-# ===== SIDEBAR =====
+# ------------------------------------------
+# SIDEBAR
+# ------------------------------------------
 st.sidebar.header("⚙️ Configuration")
+default_model = ["XGBoost"] if "XGBoost" in available_models else available_models[:1]
+
 selected_models = st.sidebar.multiselect(
-    "Select models", available_models,
-    default=available_models[:1]
+    "Select model types:", available_models, default=default_model
 )
+
+st.sidebar.subheader("🔢 Input variables")
 
 IDADE = st.sidebar.number_input("Age", 1, 120, 30)
 SEXO = 1 if st.sidebar.selectbox("Gender", ["Female", "Male"]) == "Female" else 0
-ALTURA = st.sidebar.number_input("Height (m)", 1.2, 2.2, 1.7)
+
+ALTURA = st.sidebar.number_input("Height (m)", 1.2, 2.2, 1.70)
 P_INICIAL = st.sidebar.number_input("Initial Weight (kg)", 30.0, 300.0, 120.0)
 
-IMC = P_INICIAL / (ALTURA ** 2)
+IMC = P_INICIAL / (ALTURA ** 2) if ALTURA > 0 else 0.0
 
+st.sidebar.number_input(
+    "BMI (auto-calculated: weight / height²)",
+    value=float(round(IMC, 2)),
+    disabled=True
+)
+
+# INPUT DATAFRAME
 input_df = pd.DataFrame(
     [[IDADE, IMC, ALTURA, P_INICIAL, SEXO]],
     columns=["IDADE", "IMC", "ALTURA", "P INICIAL", "S"]
 )
 
+# ==========================================
+# SESSION STATE
+# ==========================================
+if "run_pred" not in st.session_state:
+    st.session_state.run_pred = False
+
 if st.button("Run predictions"):
+    st.session_state.run_pred = True
+
+color_map = {
+    m: qualitative.Plotly[i % len(qualitative.Plotly)]
+    for i, m in enumerate(available_models)
+}
+
+# ==========================================
+# RUN PREDICTIONS
+# ==========================================
+if st.session_state.run_pred:
+
     predictions = {m: [] for m in selected_models}
 
     for mtype in selected_models:
         for tgt in TARGETS_ORDER:
             model = LOADED.get(mtype, {}).get(tgt)
-            predictions[mtype].append(
-                float(model.predict(input_df)[0]) if model else np.nan
-            )
+            if model is None:
+                predictions[mtype].append(np.nan)
+            else:
+                predictions[mtype].append(float(model.predict(input_df)[0]))
 
     results_df = pd.DataFrame(predictions, index=TARGETS_ORDER)
+    st.subheader("📋 Predictions Table")
     st.dataframe(results_df)
 
     x_vals = ["0M"] + TARGETS_ORDER
 
-    # ===== WEIGHT GRAPH =====
+    # ======================================================
+    # GRAPH 1 — WEIGHT PREDICTION
+    # ======================================================
+    st.subheader("📉 Weight Prediction after Bariatric Surgery")
     fig_weight = go.Figure()
+
     for mtype in selected_models:
+        base_color = color_map[mtype]
+        y_main = [P_INICIAL] + predictions[mtype]
+
+        upper = [P_INICIAL]
+        lower = [P_INICIAL]
+
+        for t, pred in zip(TARGETS_ORDER, predictions[mtype]):
+            row = perf_df[(perf_df['TARGET'] == t) & (perf_df['MODEL'] == mtype)]
+            if len(row) > 0:
+                mae = float(row['MAE'])
+                std = float(row['MAE_STD'])
+                err = mae + 3 * std
+                upper.append(pred + err)
+                lower.append(pred - err)
+            else:
+                upper.append(pred)
+                lower.append(pred)
+
+        r = int(base_color[1:3], 16)
+        g = int(base_color[3:5], 16)
+        b = int(base_color[5:7], 16)
+
+        rgba_line = f"rgba({r},{g},{b},0.7)"
+        rgba_light = f"rgba({r},{g},{b},0.18)"
+
+        # MAIN LINE
         fig_weight.add_trace(go.Scatter(
-            x=x_vals,
-            y=[P_INICIAL] + predictions[mtype],
-            mode="lines+markers",
-            name=mtype
+            x=x_vals, y=y_main, mode="lines+markers", name=mtype,
+            legendgroup=mtype,
+            line=dict(width=3, color=rgba_line, shape="spline", smoothing=1.2),
+            marker=dict(size=8, color=rgba_line)
         ))
-    st.plotly_chart(fig_weight, use_container_width=True)
 
-    # ===== BMI GRAPH =====
-    fig_bmi = go.Figure()
-    for mtype in selected_models:
-        fig_bmi.add_trace(go.Scatter(
-            x=x_vals,
-            y=[IMC] + [p / (ALTURA ** 2) for p in predictions[mtype]],
-            mode="lines+markers",
-            name=mtype
+        # UPPER ERROR
+        fig_weight.add_trace(go.Scatter(
+            x=x_vals, y=upper, mode="lines",
+            legendgroup=mtype, showlegend=False,
+            line=dict(width=0.1, color=rgba_line, shape="spline", smoothing=1.2),
+            opacity=0.3
         ))
-    st.plotly_chart(fig_bmi, use_container_width=True)
 
-    # ===== TWL GRAPH =====
-    fig_twl = go.Figure()
-    for mtype in selected_models:
-        fig_twl.add_trace(go.Scatter(
-            x=x_vals,
-            y=[0] + [100 * (P_INICIAL - p) / P_INICIAL for p in predictions[mtype]],
-            mode="lines+markers",
-            name=mtype
+        # LOWER ERROR
+        fig_weight.add_trace(go.Scatter(
+            x=x_vals, y=lower, mode="lines",
+            legendgroup=mtype, showlegend=False,
+            line=dict(width=0.1, color=rgba_line, shape="spline", smoothing=1.2),
+            fill="tonexty", fillcolor=rgba_light, opacity=0.3
         ))
-    st.plotly_chart(fig_twl, use_container_width=True)
 
-    # ===== PDF EXPORT =====
-    st.divider()
-    pdf = generate_pdf(input_df, results_df, fig_weight, fig_bmi, fig_twl)
-
-    st.download_button(
-        "📄 Export PDF Report",
-        data=pdf,
-        file_name="bariatric_prediction_report.pdf",
-        mime="application/pdf"
+    fig_weight.update_layout(
+        title="Weight Prediction after Bariatric Surgery",
+        hovermode="x unified", template="plotly_white",
+        width=1200, height=600,
+        xaxis=dict(title="Time", tickmode='array', tickvals=x_vals),
+        yaxis=dict(title="Weight (Kg)", dtick=5)
     )
 
+    st.plotly_chart(fig_weight, use_container_width=True)
 
-# ===== FOOTER =====
+    # ======================================================
+    # GRAPH 2 — BMI PROGRESSION
+    # ======================================================
+    st.subheader("📊 BMI Progression Over Time")
+
+    fig_bmi = go.Figure()
+    altura_sq = ALTURA ** 2
+    bmi_initial = IMC
+
+    # BMI ZONES
+    fig_bmi.add_shape(type="rect", x0=0, x1=1, y0=20, y1=25,
+                      xref="paper", yref="y",
+                      fillcolor="rgba(0,200,0,0.15)", line=dict(width=0))
+    fig_bmi.add_shape(type="rect", x0=0, x1=1, y0=25, y1=30,
+                      xref="paper", yref="y",
+                      fillcolor="rgba(255,215,0,0.20)", line=dict(width=0))
+    fig_bmi.add_shape(type="rect", x0=0, x1=1, y0=30, y1=60,
+                      xref="paper", yref="y",
+                      fillcolor="rgba(255,0,0,0.15)", line=dict(width=0))
+
+    for mtype in selected_models:
+        preds = predictions[mtype]
+        y_bmi = [bmi_initial] + [pred / altura_sq for pred in preds]
+
+        base_color = color_map[mtype]
+        r = int(base_color[1:3], 16)
+        g = int(base_color[3:5], 16)
+        b = int(base_color[5:7], 16)
+        rgba_line = f"rgba({r},{g},{b},0.7)"
+
+        fig_bmi.add_trace(go.Scatter(
+            x=x_vals, y=y_bmi, mode="lines+markers", name=mtype,
+            line=dict(width=3, color=rgba_line, shape="spline", smoothing=1.2),
+            marker=dict(size=8, color=rgba_line)
+        ))
+
+    fig_bmi.update_layout(
+        title="BMI Progression after Bariatric Surgery",
+        hovermode="x unified", template="plotly_white",
+        width=1200, height=500,
+        xaxis=dict(title="Time", tickmode="array", tickvals=x_vals),
+        yaxis=dict(title="BMI (kg/m²)", range=[18, 60])
+    )
+
+    st.plotly_chart(fig_bmi, use_container_width=True)
+
+    # ======================================================
+    # GRAPH 3 — % TOTAL WEIGHT LOSS
+    # ======================================================
+    st.subheader("📉 % Total Weight Loss (TWL%) Over Time")
+
+    fig_twl = go.Figure()
+
+    for mtype in selected_models:
+        preds = predictions[mtype]
+        y_twl = [0.0] + [100 * (P_INICIAL - p) / P_INICIAL for p in preds]
+
+        base_color = color_map[mtype]
+        r = int(base_color[1:3], 16)
+        g = int(base_color[3:5], 16)
+        b = int(base_color[5:7], 16)
+        rgba_line = f"rgba({r},{g},{b},0.7)"
+
+        fig_twl.add_trace(go.Scatter(
+            x=x_vals, y=y_twl, mode="lines+markers", name=mtype,
+            line=dict(width=3, color=rgba_line, shape="spline", smoothing=1.2),
+            marker=dict(size=8, color=rgba_line)
+        ))
+
+    fig_twl.update_layout(
+        title="% Total Weight Loss (TWL%) Over Time",
+        hovermode="x unified", template="plotly_white",
+        width=1200, height=500,
+        xaxis=dict(title="Time", tickmode="array", tickvals=x_vals),
+        yaxis=dict(title="TWL (%)")
+    )
+
+    st.plotly_chart(fig_twl, use_container_width=True)
+# ==========================================
+# FOOTER
+# ==========================================
 st.markdown(
-    "<p style='text-align:center;color:gray;font-size:12px;'>Developed by Arthur Canciglieri</p>",
+    """
+    <div style="position: fixed; bottom: 10px; width: 100%; text-align: center;">
+        <p style="font-size:12px; font-style:italic; color:gray;">
+            Developed by Arthur Canciglieri
+        </p>
+    </div>
+    """,
     unsafe_allow_html=True
 )
