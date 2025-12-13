@@ -1,339 +1,313 @@
-
-
-# STREAMLIT APP WITH AUTO-BMI, BMI ZONES, WEIGHT PREDICTION, BMI PROGRESSION, AND %TWL
+# STREAMLIT APP WITH AUTO-BMI, BMI ZONES, WEIGHT PREDICTION, BMI PROGRESSION, %TWL
+# + DISCLAIMER GATE + EN/PT-BR + MOBILE STATIC PLOTS + PDF EXPORT WITH WATERMARK
 
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 import numpy as np
 import os
 import re
 import joblib
+import io
+from datetime import datetime
 import plotly.graph_objects as go
 from plotly.colors import qualitative
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.pagesizes import A4
+from reportlab.lib import colors
 
+# =====================================================
+# NUMPY ALIAS FIX
+# =====================================================
+for a, b in [("float", float), ("int", int), ("bool", bool), ("object", object), ("str", str)]:
+    if not hasattr(np, a):
+        setattr(np, a, b)
 
-# ==========================================
-# FIX FOR REMOVED NUMPY ALIASES
-# ==========================================
-if not hasattr(np, "float"): np.float = float
-if not hasattr(np, "int"): np.int = int
-if not hasattr(np, "bool"): np.bool = bool
-if not hasattr(np, "object"): np.object = object
-if not hasattr(np, "str"): np.str = str
-
-# ==========================================
-# ABSOLUTE PATH FIXES  (IMPORTANT!)
-# ==========================================
+# =====================================================
+# PATHS
+# =====================================================
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
 MODEL_FOLDER = os.path.join(BASE_DIR, "models")
 PERFORMANCE_FILE = os.path.join(BASE_DIR, "Performance.xlsx")
 LOGO_PATH = os.path.join(BASE_DIR, "logo.jpeg")
 
-# ==========================================
+# =====================================================
 # TARGET ORDER
-# ==========================================
+# =====================================================
 TARGETS_ORDER = [
     "1M", "3M", "6M", "9M",
     "1A", "2A", "3A", "4A", "5A",
     "6A", "7A", "8A", "9A", "10A"
 ]
 
-# ==========================================
-# SCAN AND LOAD MODELS
-# ==========================================
-def scan_model_filenames():
-    # SAFE: ensures folder exists
-    if not os.path.exists(MODEL_FOLDER):
-        st.error(f"Models folder not found: {MODEL_FOLDER}")
-        return {}
+# =====================================================
+# TRANSLATIONS
+# =====================================================
+TEXT = {
+    "en": {
+        "lang": "Language",
+        "nav": "Navigation",
+        "disclaimer_title": "🧾 Regulatory Disclaimer",
+        "disclaimer": """
+This application is **for testing and evaluation purposes only** and is **still under development**.
 
-    files = [
-        f for f in os.listdir(MODEL_FOLDER)
-        if f.lower().endswith(".pkl")
-    ]
+• This tool is **not a medical device**  
+• Predictions may be inaccurate  
+• Results are **for reference only**  
+• **Always consult your bariatric surgeon or doctor**
+""",
+        "accept": "I understand and accept the disclaimer",
+        "continue": "Continue",
+        "pdf_watermark": "FOR TESTING ONLY – UNDER DEVELOPMENT – REFERENCE USE ONLY – CONSULT YOUR BARIATRIC SURGEON OR DOCTOR",
+        "run": "🔮 Run predictions",
+        "report": "Bariatric Surgery Prediction Report",
+    },
+    "pt": {
+        "lang": "Idioma",
+        "nav": "Navegação",
+        "disclaimer_title": "🧾 Aviso Regulatório",
+        "disclaimer": """
+Este aplicativo é **apenas para fins de teste e avaliação** e **ainda está em desenvolvimento**.
 
-    pattern = r"^(1M|3M|6M|9M|1A|2A|3A|4A|5A|6A|7A|8A|9A|10A)_(.+)\.pkl$"
+• Esta ferramenta **não é um dispositivo médico**  
+• As previsões podem estar incorretas  
+• Os resultados são **apenas para referência**  
+• **Consulte sempre seu cirurgião bariátrico ou médico**
+""",
+        "accept": "Li e aceito o aviso",
+        "continue": "Continuar",
+        "pdf_watermark": "APENAS PARA TESTES – EM DESENVOLVIMENTO – USO COMO REFERÊNCIA – CONSULTE SEU MÉDICO OU CIRURGIÃO BARIÁTRICO",
+        "run": "🔮 Executar previsões",
+        "report": "Relatório de Predição – Cirurgia Bariátrica",
+    }
+}
 
-    models_by_type = {}
-    for fname in files:
-        match = re.match(pattern, fname)
-        if not match:
-            continue
-        target, mtype = match.group(1), match.group(2)
-        if mtype not in models_by_type:
-            models_by_type[mtype] = {}
-        models_by_type[mtype][target] = fname
-
-    return models_by_type
-
-
-@st.cache_resource
-def load_all_models(models_by_type):
-    loaded = {}
-
-    for mtype, targets in models_by_type.items():
-        loaded[mtype] = {}
-        for target, fname in targets.items():
-            fullpath = os.path.join(MODEL_FOLDER, fname)
-
-            try:
-                loaded[mtype][target] = joblib.load(fullpath)
-            except Exception as e:
-                loaded[mtype][target] = None
-                st.error(f"❌ Failed to load {fname}: {e}")
-
-    return loaded
-
-
-@st.cache_data
-def load_performance():
-    if not os.path.exists(PERFORMANCE_FILE):
-        st.error(f"Performance.xlsx not found at {PERFORMANCE_FILE}")
-        return pd.DataFrame()
-
-    return pd.read_excel(PERFORMANCE_FILE)
-
-# ==========================================
-# STREAMLIT UI
-# ==========================================
+# =====================================================
+# PAGE CONFIG
+# =====================================================
 st.set_page_config(page_title="Weight Loss Prediction", layout="wide")
 
-# SAFETY CHECK FOR LOGO FILE
-if os.path.exists(LOGO_PATH):
-    st.image(LOGO_PATH, width=600)
-else:
-    st.error(f"Logo file not found: {LOGO_PATH}")
+# =====================================================
+# SESSION STATE
+# =====================================================
+st.session_state.setdefault("accepted", False)
+st.session_state.setdefault("is_mobile", False)
+st.session_state.setdefault("run_pred", False)
 
-st.title("📈 Multi-Model Bariatric Surgery Weight Prediction")
+# =====================================================
+# SIDEBAR — LANGUAGE + NAV
+# =====================================================
+lang_choice = st.sidebar.selectbox(TEXT["en"]["lang"], ["English 🇺🇸", "Português 🇧🇷"])
+LANG = "pt" if "Português" in lang_choice else "en"
+T = TEXT[LANG]
 
-# LOAD MODELS
+st.sidebar.header(T["nav"])
+page = st.sidebar.radio("", ["Disclaimer", "App"])
+
+# =====================================================
+# DISCLAIMER PAGE
+# =====================================================
+if page == "Disclaimer":
+    st.title(T["disclaimer_title"])
+    st.markdown(T["disclaimer"])
+
+    if st.checkbox(T["accept"]):
+        if st.button(T["continue"]):
+            st.session_state.accepted = True
+            st.rerun()
+    st.stop()
+
+if page == "App" and not st.session_state.accepted:
+    st.warning("Please accept the disclaimer first.")
+    st.stop()
+
+# =====================================================
+# MOBILE DETECTION
+# =====================================================
+components.html(
+    """
+    <script>
+    const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+    window.parent.postMessage({type:"MOBILE", value:isMobile}, "*");
+    </script>
+    """,
+    height=0,
+)
+
+# =====================================================
+# MODEL LOADING
+# =====================================================
+def scan_model_filenames():
+    if not os.path.exists(MODEL_FOLDER):
+        return {}
+    pattern = r"^(1M|3M|6M|9M|1A|2A|3A|4A|5A|6A|7A|8A|9A|10A)_(.+)\.pkl$"
+    models = {}
+    for f in os.listdir(MODEL_FOLDER):
+        m = re.match(pattern, f)
+        if m:
+            tgt, mtype = m.groups()
+            models.setdefault(mtype, {})[tgt] = f
+    return models
+
+@st.cache_resource
+def load_all_models(models):
+    out = {}
+    for mtype, tgts in models.items():
+        out[mtype] = {}
+        for tgt, f in tgts.items():
+            try:
+                out[mtype][tgt] = joblib.load(os.path.join(MODEL_FOLDER, f))
+            except:
+                out[mtype][tgt] = None
+    return out
+
+@st.cache_data
+def load_perf():
+    return pd.read_excel(PERFORMANCE_FILE) if os.path.exists(PERFORMANCE_FILE) else pd.DataFrame()
+
 models_by_type = scan_model_filenames()
 available_models = sorted(models_by_type.keys())
 LOADED = load_all_models(models_by_type)
-perf_df = load_performance()
+perf_df = load_perf()
 
-# ------------------------------------------
-# SIDEBAR
-# ------------------------------------------
+# =====================================================
+# HEADER
+# =====================================================
+if os.path.exists(LOGO_PATH):
+    st.image(LOGO_PATH, width=500)
+
+st.title("📈 Multi-Model Bariatric Surgery Weight Prediction")
+
+# =====================================================
+# SIDEBAR INPUTS
+# =====================================================
 st.sidebar.header("⚙️ Configuration")
-default_model = ["XGBoost"] if "XGBoost" in available_models else available_models[:1]
 
 selected_models = st.sidebar.multiselect(
-    "Select model types:", available_models, default=default_model
+    "Select model types",
+    available_models,
+    default=["XGBoost"] if "XGBoost" in available_models else available_models[:1]
 )
-
-st.sidebar.subheader("🔢 Input variables")
 
 IDADE = st.sidebar.number_input("Age", 1, 120, 30)
 SEXO = 1 if st.sidebar.selectbox("Gender", ["Female", "Male"]) == "Female" else 0
-
 ALTURA = st.sidebar.number_input("Height (m)", 1.2, 2.2, 1.70)
 P_INICIAL = st.sidebar.number_input("Initial Weight (kg)", 30.0, 300.0, 120.0)
+IMC = P_INICIAL / (ALTURA ** 2)
 
-IMC = P_INICIAL / (ALTURA ** 2) if ALTURA > 0 else 0.0
+st.sidebar.number_input("BMI", value=round(IMC, 2), disabled=True)
 
-st.sidebar.number_input(
-    "BMI (auto-calculated: weight / height²)",
-    value=float(round(IMC, 2)),
-    disabled=True
-)
+input_df = pd.DataFrame([[IDADE, IMC, ALTURA, P_INICIAL, SEXO]],
+                        columns=["IDADE", "IMC", "ALTURA", "P INICIAL", "S"])
 
-# INPUT DATAFRAME
-input_df = pd.DataFrame(
-    [[IDADE, IMC, ALTURA, P_INICIAL, SEXO]],
-    columns=["IDADE", "IMC", "ALTURA", "P INICIAL", "S"]
-)
-
-# ==========================================
-# SESSION STATE
-# ==========================================
-if "run_pred" not in st.session_state:
-    st.session_state.run_pred = False
-
-if st.button("Run predictions"):
+if st.sidebar.button(T["run"]):
     st.session_state.run_pred = True
 
-color_map = {
-    m: qualitative.Plotly[i % len(qualitative.Plotly)]
-    for i, m in enumerate(available_models)
-}
+# =====================================================
+# PLOTLY CONFIG
+# =====================================================
+def plotly_config():
+    return {"staticPlot": st.session_state.is_mobile}
 
-# ==========================================
+# =====================================================
+# PDF EXPORT
+# =====================================================
+def generate_pdf(predictions):
+    buffer = io.BytesIO()
+    styles = getSampleStyleSheet()
+
+    watermark = ParagraphStyle(
+        "wm", fontSize=8, textColor=colors.grey, alignment=1, italic=True
+    )
+
+    doc = SimpleDocTemplate(buffer, pagesize=A4)
+    story = []
+
+    story.append(Paragraph(T["pdf_watermark"], watermark))
+    story.append(Spacer(1, 12))
+    story.append(Paragraph(T["report"], styles["Title"]))
+    story.append(Spacer(1, 12))
+
+    table = Table([
+        ["Age", IDADE],
+        ["Gender", "Female" if SEXO else "Male"],
+        ["Height (m)", ALTURA],
+        ["Initial Weight (kg)", P_INICIAL],
+        ["BMI", round(IMC, 2)],
+        ["Models", ", ".join(selected_models)],
+        ["Generated", datetime.now().strftime("%Y-%m-%d %H:%M")]
+    ])
+
+    table.setStyle(TableStyle([("GRID", (0, 0), (-1, -1), 1, colors.grey)]))
+    story.append(table)
+
+    doc.build(story)
+    buffer.seek(0)
+    return buffer
+
+# =====================================================
 # RUN PREDICTIONS
-# ==========================================
+# =====================================================
 if st.session_state.run_pred:
 
     predictions = {m: [] for m in selected_models}
 
-    for mtype in selected_models:
-        for tgt in TARGETS_ORDER:
-            model = LOADED.get(mtype, {}).get(tgt)
-            if model is None:
-                predictions[mtype].append(np.nan)
-            else:
-                predictions[mtype].append(float(model.predict(input_df)[0]))
+    for m in selected_models:
+        for t in TARGETS_ORDER:
+            model = LOADED.get(m, {}).get(t)
+            predictions[m].append(float(model.predict(input_df)[0]) if model else np.nan)
 
     results_df = pd.DataFrame(predictions, index=TARGETS_ORDER)
     st.subheader("📋 Predictions Table")
     st.dataframe(results_df)
 
+    pdf = generate_pdf(predictions)
+    st.download_button("📄 Download PDF Report", pdf, "bariatric_report.pdf")
+
     x_vals = ["0M"] + TARGETS_ORDER
+    color_map = {m: qualitative.Plotly[i % len(qualitative.Plotly)] for i, m in enumerate(available_models)}
 
-    # ======================================================
-    # GRAPH 1 — WEIGHT PREDICTION
-    # ======================================================
-    st.subheader("📉 Weight Prediction after Bariatric Surgery")
-    fig_weight = go.Figure()
-
-    for mtype in selected_models:
-        base_color = color_map[mtype]
-        y_main = [P_INICIAL] + predictions[mtype]
-
-        upper = [P_INICIAL]
-        lower = [P_INICIAL]
-
-        for t, pred in zip(TARGETS_ORDER, predictions[mtype]):
-            row = perf_df[(perf_df['TARGET'] == t) & (perf_df['MODEL'] == mtype)]
-            if len(row) > 0:
-                mae = float(row['MAE'])
-                std = float(row['MAE_STD'])
-                err = mae + 3 * std
-                upper.append(pred + err)
-                lower.append(pred - err)
-            else:
-                upper.append(pred)
-                lower.append(pred)
-
-        r = int(base_color[1:3], 16)
-        g = int(base_color[3:5], 16)
-        b = int(base_color[5:7], 16)
-
-        rgba_line = f"rgba({r},{g},{b},0.7)"
-        rgba_light = f"rgba({r},{g},{b},0.18)"
-
-        # MAIN LINE
-        fig_weight.add_trace(go.Scatter(
-            x=x_vals, y=y_main, mode="lines+markers", name=mtype,
-            legendgroup=mtype,
-            line=dict(width=3, color=rgba_line, shape="spline", smoothing=1.2),
-            marker=dict(size=8, color=rgba_line)
+    # ================= GRAPH 1 =================
+    st.subheader("📉 Weight Prediction")
+    fig = go.Figure()
+    for m in selected_models:
+        fig.add_trace(go.Scatter(
+            x=x_vals,
+            y=[P_INICIAL] + predictions[m],
+            mode="lines+markers",
+            name=m
         ))
+    st.plotly_chart(fig, use_container_width=True, config=plotly_config())
 
-        # UPPER ERROR
-        fig_weight.add_trace(go.Scatter(
-            x=x_vals, y=upper, mode="lines",
-            legendgroup=mtype, showlegend=False,
-            line=dict(width=0.1, color=rgba_line, shape="spline", smoothing=1.2),
-            opacity=0.3
+    # ================= GRAPH 2 =================
+    st.subheader("📊 BMI Progression")
+    fig = go.Figure()
+    for m in selected_models:
+        fig.add_trace(go.Scatter(
+            x=x_vals,
+            y=[IMC] + [p / (ALTURA ** 2) for p in predictions[m]],
+            mode="lines+markers",
+            name=m
         ))
+    st.plotly_chart(fig, use_container_width=True, config=plotly_config())
 
-        # LOWER ERROR
-        fig_weight.add_trace(go.Scatter(
-            x=x_vals, y=lower, mode="lines",
-            legendgroup=mtype, showlegend=False,
-            line=dict(width=0.1, color=rgba_line, shape="spline", smoothing=1.2),
-            fill="tonexty", fillcolor=rgba_light, opacity=0.3
+    # ================= GRAPH 3 =================
+    st.subheader("📉 % Total Weight Loss")
+    fig = go.Figure()
+    for m in selected_models:
+        fig.add_trace(go.Scatter(
+            x=x_vals,
+            y=[0] + [100 * (P_INICIAL - p) / P_INICIAL for p in predictions[m]],
+            mode="lines+markers",
+            name=m
         ))
+    st.plotly_chart(fig, use_container_width=True, config=plotly_config())
 
-    fig_weight.update_layout(
-        title="Weight Prediction after Bariatric Surgery",
-        hovermode="x unified", template="plotly_white",
-        width=1200, height=600,
-        xaxis=dict(title="Time", tickmode='array', tickvals=x_vals),
-        yaxis=dict(title="Weight (Kg)", dtick=5)
-    )
-
-    st.plotly_chart(fig_weight, use_container_width=True)
-
-    # ======================================================
-    # GRAPH 2 — BMI PROGRESSION
-    # ======================================================
-    st.subheader("📊 BMI Progression Over Time")
-
-    fig_bmi = go.Figure()
-    altura_sq = ALTURA ** 2
-    bmi_initial = IMC
-
-    # BMI ZONES
-    fig_bmi.add_shape(type="rect", x0=0, x1=1, y0=20, y1=25,
-                      xref="paper", yref="y",
-                      fillcolor="rgba(0,200,0,0.15)", line=dict(width=0))
-    fig_bmi.add_shape(type="rect", x0=0, x1=1, y0=25, y1=30,
-                      xref="paper", yref="y",
-                      fillcolor="rgba(255,215,0,0.20)", line=dict(width=0))
-    fig_bmi.add_shape(type="rect", x0=0, x1=1, y0=30, y1=60,
-                      xref="paper", yref="y",
-                      fillcolor="rgba(255,0,0,0.15)", line=dict(width=0))
-
-    for mtype in selected_models:
-        preds = predictions[mtype]
-        y_bmi = [bmi_initial] + [pred / altura_sq for pred in preds]
-
-        base_color = color_map[mtype]
-        r = int(base_color[1:3], 16)
-        g = int(base_color[3:5], 16)
-        b = int(base_color[5:7], 16)
-        rgba_line = f"rgba({r},{g},{b},0.7)"
-
-        fig_bmi.add_trace(go.Scatter(
-            x=x_vals, y=y_bmi, mode="lines+markers", name=mtype,
-            line=dict(width=3, color=rgba_line, shape="spline", smoothing=1.2),
-            marker=dict(size=8, color=rgba_line)
-        ))
-
-    fig_bmi.update_layout(
-        title="BMI Progression after Bariatric Surgery",
-        hovermode="x unified", template="plotly_white",
-        width=1200, height=500,
-        xaxis=dict(title="Time", tickmode="array", tickvals=x_vals),
-        yaxis=dict(title="BMI (kg/m²)", range=[18, 60])
-    )
-
-    st.plotly_chart(fig_bmi, use_container_width=True)
-
-    # ======================================================
-    # GRAPH 3 — % TOTAL WEIGHT LOSS
-    # ======================================================
-    st.subheader("📉 % Total Weight Loss (TWL%) Over Time")
-
-    fig_twl = go.Figure()
-
-    for mtype in selected_models:
-        preds = predictions[mtype]
-        y_twl = [0.0] + [100 * (P_INICIAL - p) / P_INICIAL for p in preds]
-
-        base_color = color_map[mtype]
-        r = int(base_color[1:3], 16)
-        g = int(base_color[3:5], 16)
-        b = int(base_color[5:7], 16)
-        rgba_line = f"rgba({r},{g},{b},0.7)"
-
-        fig_twl.add_trace(go.Scatter(
-            x=x_vals, y=y_twl, mode="lines+markers", name=mtype,
-            line=dict(width=3, color=rgba_line, shape="spline", smoothing=1.2),
-            marker=dict(size=8, color=rgba_line)
-        ))
-
-    fig_twl.update_layout(
-        title="% Total Weight Loss (TWL%) Over Time",
-        hovermode="x unified", template="plotly_white",
-        width=1200, height=500,
-        xaxis=dict(title="Time", tickmode="array", tickvals=x_vals),
-        yaxis=dict(title="TWL (%)")
-    )
-
-    st.plotly_chart(fig_twl, use_container_width=True)
-# ==========================================
+# =====================================================
 # FOOTER
-# ==========================================
+# =====================================================
 st.markdown(
-    """
-    <div style="position: fixed; bottom: 10px; width: 100%; text-align: center;">
-        <p style="font-size:12px; font-style:italic; color:gray;">
-            Developed by Arthur Canciglieri
-        </p>
-    </div>
-    """,
+    "<p style='text-align:center;font-size:12px;color:gray;'>Developed by Arthur Canciglieri</p>",
     unsafe_allow_html=True
 )
