@@ -107,47 +107,40 @@ if "disclaimer_accepted" not in st.session_state:
 
 if not st.session_state.disclaimer_accepted:
     st.markdown(
-        """
-        <div style="
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(255,255,255,0.97);
-            z-index: 9999;
-            padding: 60px;
-            overflow-y: auto;
-        ">
-        <h2>⚠️ Important Disclaimer</h2>
+    """
+    <div style="
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(255,255,255,0.97);
+        z-index: 9999;
+        padding: 60px;
+        overflow-y: auto;
+    ">
+    <h2>⚠️ Important Disclaimer</h2>
 
-        <p>
-        <strong>Based on preoperative characteristics</strong>, this application displays
-        <strong>predicted weights</strong> at <strong>1, 3, 12, 24, and 60 months</strong>
-        after a first bariatric surgery.
-        </p>
+    <p style="font-size:18px;">
+    This application is <strong>for testing and evaluation purposes only</strong> and is
+    <strong>still under development</strong>.
+    </p>
 
-        <ul>
-            <li>Trajectories are displayed as <strong>smooth lines</strong> for clarity.</li>
-            <li>The range around each curve is based on the
-                <strong>interquartile range of prediction errors</strong>.</li>
-            <li>Predictions are derived from the histories of previous individuals
-                undergoing bariatric surgery.</li>
-        </ul>
+    <ul style="font-size:16px;">
+        <li><strong>This tool is not a medical device</strong></li>
+        <li>Predictions may be inaccurate</li>
+        <li>Results are <strong>for reference only</strong></li>
+        <li><strong>Always consult your bariatric surgeon or doctor</strong></li>
+    </ul>
 
-        <p>
-        <strong>This program is not intended to provide medical advice</strong> or guide
-        healthcare decisions. It is intended solely to support
-        <strong>healthcare professionals</strong> in visualizing predicted weight trajectories.
-        </p>
+    <p style="font-size:14px; margin-top:20px;">
+    No personal or health data entered into this application is stored or saved on our servers.
+    </p>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 
-        <p>
-        <strong>No personal or health data entered into this tool is saved on our servers.</strong>
-        </p>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
 
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
