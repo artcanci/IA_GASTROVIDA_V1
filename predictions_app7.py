@@ -99,36 +99,62 @@ def load_performance():
 # ==========================================
 st.set_page_config(page_title="Weight Loss Prediction", layout="wide")
 # ==========================================
-# DISCLAIMER MODAL (SHOW ON APP START)
+# DISCLAIMER GATE (VERSION-SAFE)
 # ==========================================
 
 if "disclaimer_accepted" not in st.session_state:
     st.session_state.disclaimer_accepted = False
 
 if not st.session_state.disclaimer_accepted:
-    with st.modal("⚠️ Important Disclaimer"):
-        st.markdown(
-            """
-            **Based on preoperative characteristics**, this application displays **predicted weights**
-            at **1, 3, 12, 24, and 60 months** after a first bariatric surgery.
+    st.markdown(
+        """
+        <div style="
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(255,255,255,0.97);
+            z-index: 9999;
+            padding: 60px;
+            overflow-y: auto;
+        ">
+        <h2>⚠️ Important Disclaimer</h2>
 
-            - Trajectories are displayed as **smooth lines** for clarity.  
-            - The **range around each curve** is based on the **interquartile range of prediction errors**.  
-            - Predictions are derived from the **historical data of previous individuals** undergoing bariatric surgery.
+        <p>
+        <strong>Based on preoperative characteristics</strong>, this application displays
+        <strong>predicted weights</strong> at <strong>1, 3, 12, 24, and 60 months</strong>
+        after a first bariatric surgery.
+        </p>
 
-            **This program is not intended to provide medical advice** or support healthcare decision-making.
-            It is designed solely to assist **healthcare professionals** in visualizing predicted
-            weight trajectories following bariatric surgery.
+        <ul>
+            <li>Trajectories are displayed as <strong>smooth lines</strong> for clarity.</li>
+            <li>The range around each curve is based on the
+                <strong>interquartile range of prediction errors</strong>.</li>
+            <li>Predictions are derived from the histories of previous individuals
+                undergoing bariatric surgery.</li>
+        </ul>
 
-            **No personal or health data entered in this application is stored or saved on our servers.**
-            """
-        )
+        <p>
+        <strong>This program is not intended to provide medical advice</strong> or guide
+        healthcare decisions. It is intended solely to support
+        <strong>healthcare professionals</strong> in visualizing predicted weight trajectories.
+        </p>
 
+        <p>
+        <strong>No personal or health data entered into this tool is saved on our servers.</strong>
+        </p>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
         if st.button("I understand and agree"):
             st.session_state.disclaimer_accepted = True
             st.rerun()
 
-    # Stop the app here until disclaimer is accepted
     st.stop()
     
 # SAFETY CHECK FOR LOGO FILE
