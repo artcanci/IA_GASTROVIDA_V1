@@ -99,7 +99,7 @@ def load_performance():
 # ==========================================
 st.set_page_config(page_title="Weight Loss Prediction", layout="wide")
 # ==========================================
-# DISCLAIMER GATE
+# DISCLAIMER GATE (BUTTON FIXED)
 # ==========================================
 
 if "disclaimer_accepted" not in st.session_state:
@@ -137,17 +137,37 @@ if not st.session_state.disclaimer_accepted:
         <p style="font-size:14px;">
         No personal or health data entered into this application is stored or saved.
         </p>
+
+        <div style="margin-top:40px; text-align:center;">
+            <p style="font-size:14px; color:gray;">
+            Please acknowledge to continue
+            </p>
+        </div>
         </div>
         """,
         unsafe_allow_html=True
     )
 
-    # CENTERED BUTTON
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        if st.button("I understand and agree"):
-            st.session_state.disclaimer_accepted = True
-            st.rerun()
+    # 👉 PLACE BUTTON AFTER HTML, WITH HIGH Z-ORDER
+    st.markdown(
+        """
+        <div style="
+            position: fixed;
+            bottom: 40px;
+            left: 0;
+            width: 100%;
+            z-index: 10000;
+            text-align: center;
+        ">
+        """,
+        unsafe_allow_html=True
+    )
+
+    if st.button("I understand and agree"):
+        st.session_state.disclaimer_accepted = True
+        st.rerun()
+
+    st.markdown("</div>", unsafe_allow_html=True)
 
     st.stop()
 # SAFETY CHECK FOR LOGO FILE
