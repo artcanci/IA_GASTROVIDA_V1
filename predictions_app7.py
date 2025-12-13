@@ -151,7 +151,7 @@ input_df = pd.DataFrame(
 if "run_pred" not in st.session_state:
     st.session_state.run_pred = False
 
-if st.button("🔮 Run predictions"):
+if st.button("Run predictions"):
     st.session_state.run_pred = True
 
 color_map = {
