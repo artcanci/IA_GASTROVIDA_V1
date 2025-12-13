@@ -98,7 +98,39 @@ def load_performance():
 # STREAMLIT UI
 # ==========================================
 st.set_page_config(page_title="Weight Loss Prediction", layout="wide")
+# ==========================================
+# DISCLAIMER MODAL (SHOW ON APP START)
+# ==========================================
 
+if "disclaimer_accepted" not in st.session_state:
+    st.session_state.disclaimer_accepted = False
+
+if not st.session_state.disclaimer_accepted:
+    with st.modal("⚠️ Important Disclaimer"):
+        st.markdown(
+            """
+            **Based on preoperative characteristics**, this application displays **predicted weights**
+            at **1, 3, 12, 24, and 60 months** after a first bariatric surgery.
+
+            - Trajectories are displayed as **smooth lines** for clarity.  
+            - The **range around each curve** is based on the **interquartile range of prediction errors**.  
+            - Predictions are derived from the **historical data of previous individuals** undergoing bariatric surgery.
+
+            **This program is not intended to provide medical advice** or support healthcare decision-making.
+            It is designed solely to assist **healthcare professionals** in visualizing predicted
+            weight trajectories following bariatric surgery.
+
+            **No personal or health data entered in this application is stored or saved on our servers.**
+            """
+        )
+
+        if st.button("I understand and agree"):
+            st.session_state.disclaimer_accepted = True
+            st.rerun()
+
+    # Stop the app here until disclaimer is accepted
+    st.stop()
+    
 # SAFETY CHECK FOR LOGO FILE
 if os.path.exists(LOGO_PATH):
     st.image(LOGO_PATH, width=600)
