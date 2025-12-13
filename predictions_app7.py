@@ -99,49 +99,50 @@ def load_performance():
 # ==========================================
 st.set_page_config(page_title="Weight Loss Prediction", layout="wide")
 # ==========================================
-# DISCLAIMER GATE (VERSION-SAFE)
+# DISCLAIMER GATE
 # ==========================================
 
 if "disclaimer_accepted" not in st.session_state:
     st.session_state.disclaimer_accepted = False
 
 if not st.session_state.disclaimer_accepted:
+
     st.markdown(
-    """
-    <div style="
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background-color: rgba(255,255,255,0.97);
-        z-index: 9999;
-        padding: 60px;
-        overflow-y: auto;
-    ">
-    <h2>⚠️ Important Disclaimer</h2>
+        """
+        <div style="
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(255,255,255,0.97);
+            z-index: 9999;
+            padding: 60px;
+            overflow-y: auto;
+        ">
+        <h2>⚠️ Important Disclaimer</h2>
 
-    <p style="font-size:18px;">
-    This application is <strong>for testing and evaluation purposes only</strong> and is
-    <strong>still under development</strong>.
-    </p>
+        <p style="font-size:18px;">
+        This application is <strong>for testing and evaluation purposes only</strong>
+        and is <strong>still under development</strong>.
+        </p>
 
-    <ul style="font-size:16px;">
-        <li><strong>This tool is not a medical device</strong></li>
-        <li>Predictions may be inaccurate</li>
-        <li>Results are <strong>for reference only</strong></li>
-        <li><strong>Always consult your bariatric surgeon or doctor</strong></li>
-    </ul>
+        <ul style="font-size:16px;">
+            <li><strong>This tool is not a medical device</strong></li>
+            <li>Predictions may be inaccurate</li>
+            <li>Results are <strong>for reference only</strong></li>
+            <li><strong>Always consult your bariatric surgeon or doctor</strong></li>
+        </ul>
 
-    <p style="font-size:14px; margin-top:20px;">
-    No personal or health data entered into this application is stored or saved on our servers.
-    </p>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
+        <p style="font-size:14px;">
+        No personal or health data entered into this application is stored or saved.
+        </p>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
-
+    # CENTERED BUTTON
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         if st.button("I understand and agree"):
@@ -149,7 +150,6 @@ if not st.session_state.disclaimer_accepted:
             st.rerun()
 
     st.stop()
-    
 # SAFETY CHECK FOR LOGO FILE
 if os.path.exists(LOGO_PATH):
     st.image(LOGO_PATH, width=600)
