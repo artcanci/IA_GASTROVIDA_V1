@@ -99,7 +99,7 @@ def load_performance():
 # ==========================================
 st.set_page_config(page_title="Weight Loss Prediction", layout="wide")
 # ==========================================
-# DISCLAIMER GATE (STREAMLIT-NATIVE, SAFE)
+# CENTERED DISCLAIMER GATE
 # ==========================================
 
 if "disclaimer_accepted" not in st.session_state:
@@ -107,31 +107,39 @@ if "disclaimer_accepted" not in st.session_state:
 
 if not st.session_state.disclaimer_accepted:
 
-    st.title("⚠️ Important Disclaimer")
+    # Vertical spacing
+    st.markdown("<br><br><br>", unsafe_allow_html=True)
 
-    st.markdown(
-        """
-        This application is **for testing and evaluation purposes only**
-        and is **still under development**.
+    # Center horizontally using columns
+    col_left, col_center, col_right = st.columns([1, 2, 1])
 
-        - **This tool is not a medical device**
-        - Predictions may be inaccurate
-        - Results are **for reference only**
-        - **Always consult your bariatric surgeon or doctor**
+    with col_center:
+        st.markdown(
+            """
+            ### ⚠️ Important Disclaimer
 
-        No personal or health data entered into this application is stored or saved.
-        """
-    )
+            This application is **for testing and evaluation purposes only**
+            and is **still under development**.
 
-    st.markdown("---")
+            - **This tool is not a medical device**
+            - Predictions may be inaccurate
+            - Results are **for reference only**
+            - **Always consult your bariatric surgeon or doctor**
 
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        if st.button("I understand and agree"):
+            <br>
+
+            _No personal or health data entered into this application is stored or saved._
+            """,
+            unsafe_allow_html=True
+        )
+
+        st.markdown("---")
+
+        if st.button("I understand and agree", use_container_width=True):
             st.session_state.disclaimer_accepted = True
             st.rerun()
 
-    # 🚫 Stop the rest of the app here
+    # 🚫 Stop the rest of the app
     st.stop()
     
 # SAFETY CHECK FOR LOGO FILE
