@@ -11,6 +11,8 @@ TRANSLATIONS = {
     "English": {
         "language": "Language / Idioma",
         "app_title": "📈 Multi-Model Bariatric Surgery Weight Prediction",
+        "page_title": "Weight Loss Prediction",
+        "main_title": "📈 Multi-Model Bariatric Surgery Weight Prediction",
         "config": "⚙️ Configuration",
         "select_models": "Select model types:",
         "input_vars": "🔢 Input variables",
@@ -48,6 +50,8 @@ TRANSLATIONS = {
     "Português (Brasil)": {
         "language": "Idioma / Language",
         "app_title": "📈 Predição Multimodelo de Peso Pós-Cirurgia Bariátrica",
+        "page_title": "Predição de Perda de Peso",
+        "main_title": "📈 Predição Multimodelo de Peso Pós-Cirurgia Bariátrica",
         "config": "⚙️ Configuração",
         "select_models": "Selecione os tipos de modelo:",
         "input_vars": "🔢 Variáveis de entrada",
